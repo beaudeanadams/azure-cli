@@ -1,0 +1,46 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+# docker build -t bitnami/aspnet-core:latest 'https://github.com/bitnami/bitnami-docker-aspnet-core.git#master:3.1/debian-10'
+
+trigger: none
+
+resources:
+- repo: self
+
+variables:
+  imageRepository: 'azure-cli'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.SourceBranchName)'
+  DOCKER_BUILDKIT: 1
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-20.04'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      inputs:
+        containerRegistry: '$(containerRegistryConnection)'
+        command: 'login'
+    - task: CmdLine@2
+      displayName: Build
+      inputs:
+        script: |
+          docker run --privileged --rm tonistiigi/binfmt --install arm64
+          docker run --privileged --rm tonistiigi/binfmt
+          docker buildx create --use
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            -t $(containerRegistry)/$(imageRepository):$(tag)\
+            -t $(containerRegistry)/$(imageRepository):latest \
+            --push \
+            -f $(dockerFilePath) \
+            .
